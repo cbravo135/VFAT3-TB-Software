@@ -46,10 +46,10 @@ class VFAT3_GUI:
         self.channel_register = 0
         self.value = ""
         self.write_BCd_as_fillers = 0
-        self.adc0M = 1.916
-        self.adc0B = -330.2
-        self.adc1M = 2.217
-        self.adc1B = -479.0
+        self.adc0M = 1.918
+        self.adc0B = -316.2
+        self.adc1M = 2.183
+        self.adc1B = -454.2
         self.cal_dac_fc_values = [0]*256
         self.Iref = 0
         self.CalPulseLV1A_latency = 4
@@ -256,7 +256,7 @@ class VFAT3_GUI:
         self.cal_button = Button(self.calibration_frame, text="Adjust Iref", command=lambda: iref_adjust(self), width=bwidth)
         self.cal_button.grid(column=1, row=3, sticky='e')
 
-        self.cal_button = Button(self.calibration_frame, text="CAL_DAC step", command=lambda: cal_dac_steps(self), width=bwidth)
+        self.cal_button = Button(self.calibration_frame, text="CAL_DAC step", command=lambda: scan_cal_dac_fc(self), width=bwidth)
         self.cal_button.grid(column=1, row=4, sticky='e')
 
         self.cal_button = Button(self.calibration_frame, text="Channel Calibration", command=lambda: adjust_local_thresholds(self), width=bwidth)
@@ -372,6 +372,8 @@ class VFAT3_GUI:
         self.arm_dac = 100
         self.start_cal_dac = 200
         self.stop_cal_dac = 240
+        self.cal_dac_m = 1.0
+        self.cal_dac_b = 0.0
 
         self.start_ch_label = Label(self.scurve_frame, text="start ch.:")
         self.start_ch_label.grid(column=1, row=1, sticky='w')
@@ -483,6 +485,26 @@ class VFAT3_GUI:
         self.stop_cal_dac_label0 = Label(self.scurve_frame, text="0-254  max diff 40")
         self.stop_cal_dac_label0.grid(column=3, row=11, sticky='w')
 
+        self.cal_dac_m_label = Label(self.scurve_frame, text="CAL_DAC slope:")
+        self.cal_dac_m_label.grid(column=1, row=12, sticky='w')
+
+        self.cal_dac_m_entry = Entry(self.scurve_frame, width=5)
+        self.cal_dac_m_entry.grid(column=2, row=12, sticky='e')
+        self.cal_dac_m_entry.insert(0, self.cal_dac_m)
+
+        self.cal_dac_m_label0 = Label(self.scurve_frame, text="Get from Calibration")
+        self.cal_dac_m_label0.grid(column=3, row=12, sticky='w')
+
+        self.cal_dac_b_label = Label(self.scurve_frame, text="CAL_DAC Offset:")
+        self.cal_dac_b_label.grid(column=1, row=13, sticky='w')
+
+        self.cal_dac_b_entry = Entry(self.scurve_frame, width=5)
+        self.cal_dac_b_entry.grid(column=2, row=13, sticky='e')
+        self.cal_dac_b_entry.insert(0, self.cal_dac_b)
+
+        self.cal_dac_b_label0 = Label(self.scurve_frame, text="Get from Calibration")
+        self.cal_dac_b_label0.grid(column=3, row=13, sticky='w')
+
         self.scurve0_button = Button(self.scurve_frame, text="RUN S-curve", command=self.run_scurve, width=bwidth)
         self.scurve0_button.grid(column=1, sticky='e', columnspan=2)
 
@@ -550,7 +572,7 @@ class VFAT3_GUI:
                 "SD_I_BSF scan",
                 "SD_I_BFCAS scan",
                 "CAL_DAC scan",
-                #"CAL_DAC scan, fC",
+                "CAL_DAC scan, fC",
                 #"Counter Resets"
                # "S-curve",
                # "S-curve all ch",
@@ -947,6 +969,9 @@ class VFAT3_GUI:
         error += self.check_value_range("Start CAL_DAC", self.start_cal_dac, 0, 254)
         self.stop_cal_dac = int(self.stop_cal_dac_entry.get())
         error += self.check_value_range("Stop CAL_DAC", self.stop_cal_dac, 0, 254)
+        self.cal_dac_m = int(self.cal_dac_m_entry.get())
+        self.cal_dac_b = int(self.cal_dac_b_entry.get())
+        self.stop_cal_dac = int(self.stop_cal_dac_entry.get())
         if self.stop_cal_dac < self.start_cal_dac:
             print "Stop CAL_DAC should be higher than start CAL_DAC."
             error += 1

@@ -381,7 +381,7 @@ def scurve_analyze(obj, scurve_data,folder):
         scurves_ag[ch] = r.TGraphAsymmErrors(Nhits_h[ch], Nev_h[ch])
         scurves_ag[ch].SetName('scurve%i_ag' % ch)
         fit_f = fitScurve(scurves_ag[ch])
-        txtOutF.write('%i\t%f\t%f\n'%(ch,fit_f.GetParameter(0),fit_f.GetParameter(1)))
+        txtOutF.write('%i\t%f\t%f\n'%(ch,fit_f.GetParameter(0),fit_f.GetParameter(1)*obj.cal_dac_m+obj.cal_dac_b))
         scurves_ag[ch].Write()
         thr_h.Fill(fit_f.GetParameter(0))
         enc_h.Fill(fit_f.GetParameter(1))
@@ -389,8 +389,14 @@ def scurve_analyze(obj, scurve_data,folder):
         chi2_h.Fill(fit_f.GetChisquare())
         pass
     txtOutF.close()
+    chENC_t = r.Tree('chENC_t','Tree with noise data')
+    chENC_t.ReadFile('%s/%s/scurveFits%s.dat'%(obj.data_folder, folder,timestamp))
 
     cc = r.TCanvas('canv','canv',1000,1000)
+    cc.cd()
+
+    chENC_t.Draw('enc:CH')
+    cc.SaveAs('%s/%s/chENC_%s.png'%(obj.data_folder, folder,timestamp))
 
     meanThr = thr_h.GetMean()
     drawHisto(thr_h,cc,'%s/%s/threshHiso%s.png' %(obj.data_folder, folder,timestamp))
