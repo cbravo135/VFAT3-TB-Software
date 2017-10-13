@@ -99,7 +99,18 @@ class IPbus_response:
 
         if self.info_code != 0:
             print "!-> Transaction error: %d " % self.info_code
-
+            if self.info_code == 1:
+                print "IPbus: Bad Header."
+            elif self.info_code == 2:
+                print "IPbus: Bus Error on Read."
+            elif self.info_code == 3:
+                print "IPbus: Bus Error on Write."
+            elif self.info_code == 4:
+                print "IPbus: Bus timeout on Read."
+            elif self.info_code == 4:
+                print "IPbus: Bus timeout on Write."
+            else:
+                print "IPbus: Unknown error code"
         crc = []
         for i in data[-16:]: # Invert bits.
             if i == 0:
@@ -120,8 +131,11 @@ class datapacket:
         self.FIFO_warning = 0
         self.systemBC = 0
         self.EC = ""
+        self.ec_size = 0
         self.BC = ""
+        self.bc_size = 0
         self.data = ""
+        self.szp = 0
         self.partition_table = "" 
         self.spzs_packet = 0
         self.partitions = 0
@@ -140,46 +154,49 @@ class datapacket:
         # print "FIFO warning: %d" % self.FIFO_warning
         # print "System BC: %d" % self.systemBC
         # print self.data
+        if self.szp == 0:
+            if self.EC:
+                self.ec_size = len(self.EC)/8
+                self.EC = int(self.EC, 2)
+                # print "EC: %d" % self.EC
+            else:
+                #print "No EC value."
+                self.EC = 0
+            if self.BC:
+                self.bc_size = len(self.BC)/8
+                self.BC = int(self.BC, 2)
+                # print "BC: %d" % self.BC
+            else:
+                #print "No BC value."
+                self.BC = 0
 
-        if self.EC:
-            self.EC = int(self.EC, 2)
-            # print "EC: %d" % self.EC
-        else:
-            print "No EC value."
-            self.EC = 0
-        if self.BC:
-            self.BC = int(self.BC, 2)
-            # print "BC: %d" % self.BC
-        else:
-            print "No BC value."
-            self.BC = 0
-
-        indices = [i for i, x in enumerate(self.partition_table) if x == "1"]
-        indices = indices[:self.partitions]
-        if self.spzs_data:
-            print "Decoding SPZS data %s" % self.spzs_data
-            for i in range(0, 17):
-                if i in indices:
-                    self.data += self.spzs_data[:8]
-                    print "Data found in partition %d, %s" % (i, self.spzs_data[:8])
-                    self.spzs_data = self.spzs_data[8:]
-
-                else:
-                    self.data += "00000000"
+            indices = [i for i, x in enumerate(self.partition_table) if x == "1"]
+            indices = indices[:self.partitions]
+            if self.spzs_data:
+                # print "Decoding SPZS data %s" % self.spzs_data
+                for i in range(0, 16):
+                    if i in indices:
+                        self.data += self.spzs_data[:8]
+                        #print "Data found in partition %d, %s" % (i, self.spzs_data[:8])
+                        self.spzs_data = self.spzs_data[8:]
 
 
-        if '1' in self.data:
-            self.hit_found = 1
+                    else:
+                        self.data += "00000000"
 
-        received_crc_int = int(self.crc, 2)
-        self.calculated_crc = crc_remainder(list(self.crc_calc[:-16]))
 
-        if received_crc_int != self.calculated_crc:
-            self.crc_error = 1
-            print("!-> data packet CRC error.")
-        else:
-            pass
-            #print("CRC ok.")
+            if '1' in self.data:
+                self.hit_found = 1
+
+            received_crc_int = int(self.crc, 2)
+            self.calculated_crc = crc_remainder(list(self.crc_calc[:-16]))
+
+            if received_crc_int != self.calculated_crc:
+                self.crc_error = 1
+                print("!-> data packet CRC error.")
+            else:
+                pass
+                #print("CRC ok.")
 
 
 def decode_output_data(filename, register):
@@ -303,6 +320,7 @@ def decode_output_data(filename, register):
                 data_packet.header = input_value              # Set the binary header to the new object.
                 data_packet.systemBC = BCcounter              # Set the system BC counter to the object. Tells the time of arrival of the packet.
                 if dataformat_register.SZP[0] == 1:           # If SZP has been set to one. We only receive the header, so data packet is ready.
+                    data_packet.szp = 1
                     data_packet.ready(dataformat_register)    # Finish the data_packet object.
                     datapacket_list.append(data_packet)       # Add the finished data packet to the data packet list.
                     transaction_list.append(data_packet)
@@ -446,76 +464,5 @@ def decode_output_data(filename, register):
 
                 SC_flag = 0
 
-
-
     output_data = [IPbus_transaction_list, datapacket_list, sync_response_list, transaction_list,FPGA_output]
     return output_data
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#print "**********************"
-#print "SENT FCCs:"
-#with open('./data/sent_FCCs.dat', 'r') as f:
-#    for line in f:
-#            line = line.rstrip('\n')
-#            split_line = line.split()
-#            systemBCr = int(split_line[0])
-#            command = split_line[1]
-#            print ""
-#            print "Time: %d, Command: %s" %(systemBCr,command)
-#            if command == "LV1A" or command == "Calpulse":
-#                for i in datapacket_list:
-#                    if i.systemBC > systemBCr:
-#                        print "Matching datapacket?"
-#                        print "Time: %d Header: %s, EC: %d BC: %d" % (i.systemBC, i.header, i.EC, i.BC)
-#                        diff = i.systemBC - systemBCr
-#                        print "Delay: %d BC" % diff
-#                        print ""
-#                        break
-
-
-#print "**********************"
-#print "SENT SCs:"
-#with open('./data/sent_SCs.dat', 'r') as f:
-#    for line in f:
-#            line = line.rstrip('\n')
-#            split_line = line.split()
-#            systemBCr = int(split_line[0])
-#            transID = int(split_line[1])
-#            print ""
-#            print "Time: %d, Transaction ID: %d" %(systemBCr,transID)
-#            for i in IPbus_transaction_list:
-#                if transID == i.transaction_ID:
-#                    diff = i.BCd - systemBCr
-#                    if i.info_code == 0:
-#                        print "             Reply found. Time delay: %d Transaction OK." % diff
-#                    else:
-#                        print "             Reply found. Time delay: %d Transaction ERROR." % diff
-#                    break
-#print ""
-#print ""
-#print ""
-#print ""
-#print "**********************"
-#print "Received data packets:"
-#for i in datapacket_list:
-#    print "Time: %d Header: %s, EC: %d BC: %d" % (i.systemBC, i.header, i.EC, i.BC)
-#print "**********************"
-#print "Received Slow Control responses:"
-#for i in IPbus_transaction_list:
-#    print "Time: %d  Type: %d, Transaction_ID: %d Info code: %d" % (i.BCd,i.type_ID, i.transaction_ID, i.info_code)
-
-
-
-

@@ -24,7 +24,7 @@ class SC_encode:
         package = [self.SC0 if x == 0 else x for x in package]
         return package
 
-    def create_SC_packet(self, address, data, action, BCcounter):
+    def create_SC_packet(self, address, data, action, BCcounter, nr_words = 5):
         if action == "IDLE":
             action_value = "f"
             words = 1
@@ -36,7 +36,7 @@ class SC_encode:
             words = 5
         if action == "MULTI_WRITE":
             action_value = 1
-            words = 5
+            words = nr_words
         if action == "WRITE":
             words = 1
             action_value = 1

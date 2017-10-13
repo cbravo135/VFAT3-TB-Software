@@ -84,15 +84,11 @@ class FW_interface:
                 rvalue = "Error"
                 break
             if self.connection_mode == 0:
-                glib.set("ext_adc", 1)
-            time.sleep(0.1)
-            if self.connection_mode == 0:
                 value = glib.get("ext_adc")
             if value != 0:
                 rvalue = value * 0.0625  # ext ADC LSB is 62.5 uV
-                print "value is %i"%value
                 break
-            print "counter is %i"%counter
+            # print "counter is %i"%counter
             print "ADC returned 0, trying again."
             counter += 1
         return rvalue
@@ -102,23 +98,18 @@ class FW_interface:
         if self.connection_mode == 0:
             glib.set("ext_adc_on", 1)
 
-    def write_control(self, input_value):
+    def stop_ext_adc(self):
         glib = GLIB()
         if self.connection_mode == 0:
-            glib.set("state_fw", input_value)
-        elif self.connection_mode == 3:
-            print "writing uhal control %d" % input_value
-            self.hw.getNode("STATE").write(input_value)
-            self.hw.dispatch()
+            glib.set("ext_adc_on", 0)
+
+    def write_control(self, input_value):
+        glib = GLIB()
+        glib.set("state_fw", input_value)
 
     def read_control(self):
         glib = GLIB()
-        if self.connection_mode == 0:
-            value = glib.get("state_fw")
-        elif self.connection_mode == 3:
-            print "Reading uhal control"
-            value = self.hw.getNode("STATE").read()
-            self.hw.dispatch()
+        value = glib.get("state_fw")
         return value
 
     def write_fifo(self):
@@ -127,54 +118,31 @@ class FW_interface:
             for line in f:
                 line = line.rstrip('\n')
                 data_line = "0000000000000000" + line
-                if self.connection_mode == 0:
-                    glib.set("test_fifo", int(data_line, 2))
-                elif self.connection_mode == 3:
-                    self.hw.getNode("FIFO").write(int(data_line, 2))
-                    self.hw.dispatch()
+                glib.set("test_fifo", int(data_line, 2))
 
     def empty_fifo(self):
         glib = GLIB()
         while True:
-            if self.connection_mode == 0:
-                line = glib.get("test_fifo")
-            elif self.connection_mode == 3:
-                print "Empty uhal fifo"
-                line = self.hw.getNode("FIFO").read()
-                self.hw.dispatch()
+            line = glib.get("test_fifo")
             if line == 0 or line is None:
                 break
 
     def empty_full_fifo(self):
         glib = GLIB()
-        print "Emptying FIFO"
-        if self.connection_mode == 0:
-            glib.fifoRead("test_fifo", 131000)
-        elif self.connection_mode == 3:
-            print "Empty uhal fifo"
-            self.hw.getNode("FIFO").readBlock(131000)
-            self.hw.dispatch()
-            print "uhal ok"
-        print "FIFO empty"
+        glib.fifoRead("test_fifo", 131000)
 
     def read_fifo(self):
         glib = GLIB()
         open("./data/FPGA_output.dat", 'w').close()
         data_list = []
         while True:
-            if self.connection_mode == 0:
-                line = glib.get("test_fifo")
-            elif self.connection_mode == 3:
-                line = self.hw.getNode("FIFO").read()
-                self.hw.dispatch()
-                line = int(line)
+            line = glib.get("test_fifo")
             if line == 0 or line is None:
                 break
             if len(data_list) > 132000:
                     break
             else:
                 line = dec_to_bin_with_stuffing(line, 32)
-                # print line
                 line1 = ''.join(str(e) for e in line[0:24])
                 line2 = ''.join(str(e) for e in line[-8:])
                 line = "%s,%s \n" % (int(line1, 2), line2)
@@ -187,12 +155,7 @@ class FW_interface:
     def read_routine_fifo(self):
         glib = GLIB()
         open("./data/FPGA_output.dat", 'w').close()
-        if self.connection_mode == 0:
-            data_list = glib.fifoRead("test_fifo", 130074)
-        elif self.connection_mode == 3:
-            print "Empty uhal fifo"
-            data_list = self.hw.getNode("FIFO").readBlock(131000)
-            self.hw.dispatch()
+        data_list = glib.fifoRead("test_fifo", 130074)
         open("./data/FPGA_output_list.dat", 'w').close()
         with open("./data/FPGA_output_list.dat", "a") as myfile:
             if data_list is None:
@@ -211,12 +174,7 @@ class FW_interface:
     def read_sync_fifo(self):
         glib = GLIB()
         open("./data/FPGA_output.dat", 'w').close()
-        if self.connection_mode == 0:
-            data_list = glib.fifoRead("test_fifo", 130)
-        elif self.connection_mode == 3:
-            print "Empty uhal fifo"
-            data_list = self.hw.getNode("FIFO").readBlock(130)
-            self.hw.dispatch()
+        data_list = glib.fifoRead("test_fifo", 130)
         open("./data/FPGA_output_list.dat", 'w').close()
         with open("./data/FPGA_output_list.dat", "a") as myfile:
             if any(data_list):
@@ -229,8 +187,6 @@ class FW_interface:
                     myfile.write(line)
             else:
                 print "!-> read_routine_fifo received a value: None."
-
-
 
     def launch(self, register, file_name, serial_port, routine=0, save_data=0,obj=0):
 
@@ -245,12 +201,13 @@ class FW_interface:
                 self.empty_full_fifo()
             else:
                 self.empty_fifo()
+            time.sleep(0.01)
             self.write_control(0)
-            time.sleep(0.1)
+            time.sleep(0.01)
             self.write_fifo()
-            time.sleep(0.1)
+            time.sleep(0.01)
             self.write_control(1)
-            time.sleep(0.1)
+            time.sleep(0.01)
             if routine == 1:
                 self.read_routine_fifo()
             elif routine == 2:
@@ -339,7 +296,6 @@ class FW_interface:
                     print "Unable to create directory"
             shutil.copy2(FPGA_output, dump_file)
 
-
         if not timeout:
             transaction_stop = time.time()
             analysis_start = time.time()
@@ -348,7 +304,7 @@ class FW_interface:
             analysis_time = analysis_stop - analysis_start
             transaction_time = transaction_stop - transaction_start
 
-            # print "Transactions: %f s, Analysis: %f s" % (transaction_time, analysis_time)
+            #print "Transactions: %f s, Analysis: %f s" % (transaction_time, analysis_time)
         else:
             print "not Decoding output data."
             output_data = ['Error', 'Timeout, no response from the firmware.']
