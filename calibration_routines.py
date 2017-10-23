@@ -111,7 +111,7 @@ def calc_cal_dac_conversion_factor(obj, dac_values, charge_values):
     canv.cd()
 
     cal_dac_fc_g.Draw('ap')
-    canv.SaveAs('cal_dac_fc.png')
+    canv.SaveAs('%s/cal_dac_fc.png'%obj.data_folder)
 
     text = "\nCAL_DAC conversion completed.\n"
     text += "CAL_DAC to fC: %f + %f\n" % (obj.cal_dac_fcM, obj.cal_dac_fcB)
@@ -202,6 +202,7 @@ def adc_calibration(obj):
             obj.write_register(141)
             time.sleep(0.1)
             int_adc0_value = float(obj.read_adc0())
+            print int_adc0_value
             int_adc0_values.append(int_adc0_value)
 
             int_adc1_value = float(obj.read_adc1())
@@ -264,11 +265,11 @@ def calc_adc_conversion_constants(obj, ext_adc, int_adc0, int_adc1):
     canv = r.TCanvas('canv', 'canv', 1000, 1000)
     canv.cd()
 
-    adc0_Conv_g.Draw('ap')
-    canv.SaveAs('adc0_cal.png')
-
     adc1_Conv_g.Draw('ap')
-    canv.SaveAs('adc1_cal.png')
+    canv.SaveAs('%s/adc1_cal.png'%obj.data_folder)
+
+    adc0_Conv_g.Draw('ap')
+    canv.SaveAs('%s/adc0_cal.png'%obj.data_folder)
 
 
 def adjust_local_thresholds(obj):

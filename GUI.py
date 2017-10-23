@@ -62,7 +62,7 @@ class VFAT3_GUI:
         self.scurve_channel = 0
         self.transaction_ID = 0
         self.interactive_output_file = "./data/FPGA_instruction_list.dat"
-        self.data_folder = "./results"
+        self.data_folder = "results"
         self.COM_port = "/dev/ttyUSB0"
         self.register_mode = 'r'
         self.register_names = []
@@ -296,11 +296,14 @@ class VFAT3_GUI:
         self.cal_button = Button(self.calibration_frame, text="X-ray routine cont", command=lambda: self.run_xray_tests(), width=bwidth)
         self.cal_button.grid(column=1, row=10, sticky='e')
 
-        self.cal_button = Button(self.calibration_frame, text="Save registers", command=lambda: self.save_register_values_to_file(), width=bwidth)
-        self.cal_button.grid(column=1, row=11, sticky='e')
+        self.cal_button = Button(self.calibration_frame, text="Gain Linearity", command=lambda: self.run_gain_linearity(), width=bwidth)
+        self.cal_button.grid(column=1, row=10, sticky='e')
 
-        self.cal_button = Button(self.calibration_frame, text="Load registers", command=lambda: self.load_register_values_from_file(), width=bwidth)
-        self.cal_button.grid(column=2, row=11, sticky='e')
+        self.cal_button = Button(self.calibration_frame, text="Save Registers", command=lambda: self.save_register_values_to_file(), width=bwidth)
+        self.cal_button.grid(column=1, row=12, sticky='e')
+
+        self.cal_button = Button(self.calibration_frame, text="Load Registers", command=lambda: self.load_register_values_from_file(), width=bwidth)
+        self.cal_button.grid(column=2, row=12, sticky='e')
 
         # self.cal_button = Button(self.calibration_frame, text="W/R all registers", command=lambda: self.test_registers(), width=bwidth)
         # self.cal_button.grid(column=1, row=13, sticky='e')
@@ -384,13 +387,13 @@ class VFAT3_GUI:
         self.stop_channel = 127
         self.channel_step = 1
         self.delay = 50
-        self.interval = 2000
-        self.pulsestretch = 3
+        self.interval = 500
+        self.pulsestretch = 5
         self.latency = 45
         self.calphi = 0
-        self.arm_dac = 100
-        self.start_cal_dac = 215
-        self.stop_cal_dac = 235
+        self.arm_dac = 40
+        self.start_cal_dac = 210
+        self.stop_cal_dac = 250
 
         self.start_ch_label = Label(self.scurve_frame, text="start ch.:")
         self.start_ch_label.grid(column=1, row=1, sticky='w')
@@ -501,26 +504,6 @@ class VFAT3_GUI:
 
         self.stop_cal_dac_label0 = Label(self.scurve_frame, text="0-254  max diff 40")
         self.stop_cal_dac_label0.grid(column=3, row=11, sticky='w')
-
-        self.cal_dac_m_label = Label(self.scurve_frame, text="CAL_DAC slope:")
-        self.cal_dac_m_label.grid(column=1, row=12, sticky='w')
-
-        self.cal_dac_m_entry = Entry(self.scurve_frame, width=5)
-        self.cal_dac_m_entry.grid(column=2, row=12, sticky='e')
-        self.cal_dac_m_entry.insert(0, self.cal_dac_m)
-
-        self.cal_dac_m_label0 = Label(self.scurve_frame, text="Get from Calibration")
-        self.cal_dac_m_label0.grid(column=3, row=12, sticky='w')
-
-        self.cal_dac_b_label = Label(self.scurve_frame, text="CAL_DAC Offset:")
-        self.cal_dac_b_label.grid(column=1, row=13, sticky='w')
-
-        self.cal_dac_b_entry = Entry(self.scurve_frame, width=5)
-        self.cal_dac_b_entry.grid(column=2, row=13, sticky='e')
-        self.cal_dac_b_entry.insert(0, self.cal_dac_b)
-
-        self.cal_dac_b_label0 = Label(self.scurve_frame, text="Get from Calibration")
-        self.cal_dac_b_label0.grid(column=3, row=13, sticky='w')
 
         self.scurve0_button = Button(self.scurve_frame, text="RUN S-curve", command=self.run_scurve, width=bwidth)
         self.scurve0_button.grid(column=1, sticky='e', columnspan=2)
@@ -665,7 +648,7 @@ class VFAT3_GUI:
         self.data_dir_entry.insert(0, self.data_folder)
 
     def save_calibration_values_to_file(self):
-        filename = tkFileDialog.asksaveasfilename(filetypes=[('Register file', '*.reg')])
+        filename = self.data_folder+"/calPars.reg"
         if filename != "":
             self.save_calibration_values_to_file_execute(filename)
 
@@ -682,7 +665,7 @@ class VFAT3_GUI:
 
                     if i == 1:
                         line = line.rstrip()
-                        line = [splits for splits in line.split("\t") if splits is not ""]
+                        line = [splits for splits in line.split() if splits is not ""]
                         self.adc0M = float(line[0])
                         self.adc0B = float(line[1])
                         self.adc1M = float(line[2])
@@ -967,6 +950,7 @@ class VFAT3_GUI:
         time.sleep(0.1)
         value = self.interfaceFW.ext_adc()
         self.interfaceFW.stop_ext_adc()
+        print value
         text = "Value: %f mV\n" % value
         self.add_to_interactive_screen(text)
 
@@ -1105,8 +1089,6 @@ class VFAT3_GUI:
         error += self.check_value_range("Start CAL_DAC", self.start_cal_dac, 0, 254)
         self.stop_cal_dac = int(self.stop_cal_dac_entry.get())
         error += self.check_value_range("Stop CAL_DAC", self.stop_cal_dac, 0, 254)
-        self.cal_dac_m = int(self.cal_dac_m_entry.get())
-        self.cal_dac_b = int(self.cal_dac_b_entry.get())
         self.stop_cal_dac = int(self.stop_cal_dac_entry.get())
         if self.stop_cal_dac < self.start_cal_dac:
             print "Stop CAL_DAC should be higher than start CAL_DAC."
@@ -1423,6 +1405,10 @@ class VFAT3_GUI:
             concecutive_triggers(self, 25)
             time.sleep(2100)
             #time.sleep(30)
+
+    def run_gain_linearity(self):
+        for i in range(30,180):
+            scurve_all_ch_execute(self, "S-curve", arm_dac=i, ch=[self.start_channel, self.stop_channel], ch_step=self.channel_step, configuration="yes", dac_range=[self.start_cal_dac, self.stop_cal_dac], delay=self.delay, bc_between_calpulses=self.interval, pulsestretch=self.pulsestretch, latency=self.latency, cal_phi=self.calphi)
 
 # ######################## REGISTER-TAB FUNCTIONS ####################
 

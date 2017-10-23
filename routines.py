@@ -8,7 +8,7 @@ import ROOT as r
 import math
 import time
 import matplotlib.pyplot as plt
-import numpy
+import numpy as np
 import csv
 from test_system_functions import *
 from calibration_routines import *
@@ -162,12 +162,12 @@ def scurve_all_ch_execute(obj, scan_name, arm_dac=100, ch=[0, 127], ch_step=1, c
             os.makedirs(os.path.dirname(filename))
         except OSError as exc:  # Guard against race condition
             print "Unable to create directory"
-    with open(filename, "wb") as f:
-        writer = csv.writer(f)
-        writer.writerows(all_ch_data)
+    #with open(filename, "wb") as f:
+    #    writer = csv.writer(f)
+    #    writer.writerows(all_ch_data)
     obj.add_to_interactive_screen(text)
     # Analyze data.
-    mean_th = scurve_analyze(obj, all_ch_data,folder)
+    mean_th = scurve_analyze(obj, all_ch_data, arm_dac, folder)
     print "Mean: %f" % mean_th
     stop = time.time()
     run_time = (stop - start) / 60
@@ -177,7 +177,7 @@ def scurve_all_ch_execute(obj, scan_name, arm_dac=100, ch=[0, 127], ch_step=1, c
     return [threshold, all_ch_data]
 
 
-def scurve_analyze(obj, scurve_data,folder):
+def scurve_analyze(obj, scurve_data, arm_dac, folder):
     timestamp = time.strftime("%d.%m.%Y %H:%M")
 
     r.gROOT.SetBatch(True)
@@ -197,8 +197,8 @@ def scurve_analyze(obj, scurve_data,folder):
         Nev_h[channel] = r.TH1D('Nev%i_h'%(channel),'Nev%i_h'%(channel),256,-0.5,255.5)
 
         for j,Nhits in enumerate(data): 
-            Nhits_h[channel].AddBinContent(dac_values[j]-1,Nhits)
-            Nev_h[channel].AddBinContent(dac_values[j]-1,100)
+            Nhits_h[channel].AddBinContent(dac_values[j]+1,Nhits)
+            Nev_h[channel].AddBinContent(dac_values[j]+1,100)
             pass
 
         pass
@@ -215,24 +215,26 @@ def scurve_analyze(obj, scurve_data,folder):
     enc_h = r.TH1D('enc_h', 'ENC of all Channels;ENC [DAC Units];Number of Channels', 100, 0.0, 1.0)
     thr_h = r.TH1D('thr_h', 'Threshold of all Channels;ENC [DAC Units];Number of Channels', 160, 0.0, 80.0)
     chi2_h = r.TH1D('chi2_h', 'Fit #chi^{2};#chi^{2};Number of Channels / 0.001', 100, 0.0, 1.0)
+    thr_list = []
     enc_list = []
     scurves_ag = {}
-    txtOutF = open('%s/%s/scurveFits%s.dat'%(obj.data_folder, folder,timestamp),'w')
-    txtOutF.write('CH/I:thr/D:enc/D\n')
+    txtOutF = open('%s/%s/scurveFits%s.dat'%(obj.data_folder, folder, timestamp),'w')
+    txtOutF.write('CH/I:thr/D:enc/D:arm_dac/I\n')
     print 'Fitting Scurves'
     for ch in Nhits_h:
         scurves_ag[ch] = r.TGraphAsymmErrors(Nhits_h[ch], Nev_h[ch])
         scurves_ag[ch].SetName('scurve%i_ag' % ch)
         fit_f = fitScurve(scurves_ag[ch])
-        txtOutF.write('%i\t%f\t%f\n'%(ch,fit_f.GetParameter(0),fit_f.GetParameter(1)*obj.cal_dac_m+obj.cal_dac_b))
+        txtOutF.write('%i\t%f\t%f\t%i\n'%(ch, fit_f.GetParameter(0)*obj.cal_dac_fcM+obj.cal_dac_fcB, fit_f.GetParameter(1)*obj.cal_dac_fcM, arm_dac))
         scurves_ag[ch].Write()
         thr_h.Fill(fit_f.GetParameter(0))
         enc_h.Fill(fit_f.GetParameter(1))
-        enc_list.append(fit_f.GetParameter(1))
+        thr_list.append(fit_f.GetParameter(0)*obj.cal_dac_fcM+obj.cal_dac_fcB)
+        enc_list.append(fit_f.GetParameter(1)*obj.cal_dac_fcM)
         chi2_h.Fill(fit_f.GetChisquare())
         pass
     txtOutF.close()
-    chENC_t = r.Tree('chENC_t','Tree with noise data')
+    chENC_t = r.TTree('chENC_t','Tree with noise data')
     chENC_t.ReadFile('%s/%s/scurveFits%s.dat'%(obj.data_folder, folder,timestamp))
 
     cc = r.TCanvas('canv','canv',1000,1000)
@@ -241,7 +243,7 @@ def scurve_analyze(obj, scurve_data,folder):
     chENC_t.Draw('enc:CH')
     cc.SaveAs('%s/%s/chENC_%s.png'%(obj.data_folder, folder,timestamp))
 
-    meanThr = thr_h.GetMean()
+    meanThr = np.mean(np.array(thr_list))
     drawHisto(thr_h,cc,'%s/%s/threshHiso%s.png' %(obj.data_folder, folder,timestamp))
     #print "Mean: %f" % thr_mean
     thr_h.Write()
@@ -274,9 +276,15 @@ def fitScurve(scurve_g):
     erf_f = r.TF1('erf_f','0.5*TMath::Erf((x-[0])/(TMath::Sqrt(2)*[1]))+0.5',0.0,80.0)
     minChi2 = 9999.9
     bestI = -1
-    for i in range(20):
-        erf_f.SetParameter(0,1.0*i+15.0)
-        erf_f.SetParameter(1,2.0)
+    for xp in range(scurve_g.GetN()):
+        scurve_g.SetPointEXlow(xp,0.0)
+        scurve_g.SetPointEXhigh(xp,0.0)
+        pass
+    for i in range(100):
+        erf_f.SetParameter(0, 1.0*i+5.0)
+        erf_f.SetParLimits(0, 0.0, 1.0*i+30.0)
+        erf_f.SetParameter(1, 1.0)
+        erf_f.SetParLimits(1, 0.0, 10.0)
         scurve_g.Fit(erf_f,'Q')
         chi2 = erf_f.GetChisquare()
         if chi2 < minChi2 and chi2 > 0.0:
@@ -285,9 +293,11 @@ def fitScurve(scurve_g):
             bestFit_f = copy.deepcopy(erf_f)
             pass
         pass
-    erf_f.SetParameter(0,2.0*bestI+1.0)
-    erf_f.SetParameter(1,2.0)
-    scurve_g.Fit(erf_f,'Q')
+    erf_f.SetParameter(0,1.0*bestI+5.0)
+    erf_f.SetParLimits(0, 0.0, 1.0*bestI+30.0)
+    erf_f.SetParameter(1,1.0)
+    erf_f.SetParLimits(1, 0.0, 10.0)
+    scurve_g.Fit(erf_f,'')
     return bestFit_f
 
 
@@ -338,9 +348,9 @@ def scan_execute(obj, scan_name, plot=1,):
     text = "Results were saved to the folder:\n %s \n" % filename
 
     outF = open(filename, "w")
-    outF.write("regVal/I:ADC0/I:ADC1/I\n")
+    outF.write("regVal/I:ADC0/I:ADC1/I:ADC0mV/F:ADC1mV/F\n")
     for i,regVal in enumerate(reg_values):
-        outF.write('%i\t%i\t%i\n'%(regVal,scan_values0[i],scan_values1[i]))
+        outF.write('%i\t%i\t%i\t%f\t%f\n'%(regVal, scan_values0[i], scan_values1[i], scan_values0[i]*obj.adc0M+obj.adc0B, scan_values1[i]*obj.adc1M+obj.adc1B))
         pass
     outF.close()
     
